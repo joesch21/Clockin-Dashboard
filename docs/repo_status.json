@@ -1,0 +1,31 @@
+{
+  "project": "ClockIn Manager - Manager TimeClock Dashboard",
+  "version": "1.2.0",
+  "last_updated": "2026-07-10",
+  "status": "Stable - CSV import working well with real BscScan data. New Reports search added.",
+  "data_strategy": "Primary data source is raw BscScan transaction export CSV. No live blockchain fetching. Demo data is used only as fallback on first load.",
+  "current_focus": "Real attendance data from BscScan CSV imports. Period Summary correctly pairs ClockIn → ClockOut events. New Reports page lets managers search a single employee (by name or wallet) and pull their full clock-in/out history.",
+  "key_decisions": [
+    "overtimeMinutes and lat/lng are set to 0 on CSV import (worked time is calculated client-side via pairing)",
+    "Deduplication key = employee + rawTimestamp + eventName",
+    "Mappings and logs are persisted in localStorage",
+    "Employee display name comes from WalletMapping",
+    "New Reports.jsx added at route /reports for per-employee search + full session history",
+    "Session pairing logic extracted to src/utils/sessionPairing.js for reuse by Reports.jsx (LogsView.jsx still has its own inline copy pending a future refactor to share one source of truth)"
+  ],
+  "known_limitations": [
+    "Imported records have latitude/longitude = 0 (no geo data from transaction CSV)",
+    "Individual ClockOut rows show 0 overtime (calculated in Period Summary instead)",
+    "Demo data mixes with real data until user clears logs",
+    "Pairing logic is duplicated between LogsView.jsx and src/utils/sessionPairing.js until refactored"
+  ],
+  "tech_stack": {
+    "frontend": "React 18 + Vite + React Router",
+    "styling": "Tailwind CSS + custom components",
+    "csv": "PapaParse",
+    "icons": "lucide-react",
+    "dates": "date-fns",
+    "persistence": "localStorage (walletMappings + clockinLogs)"
+  },
+  "last_major_change": "Added Reports.jsx: search employees by name or wallet, filter by date range, view total worked/overtime hours, current status, full session table, and export that employee's report as CSV."
+}
