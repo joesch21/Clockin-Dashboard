@@ -2,15 +2,17 @@ import Papa from 'papaparse';
 
 const CONTRACT_ADDRESS = "0x4654675c8C068aC49047e9E607C34BE2492c945e".toLowerCase();
 const CLOCKIN_SELECTOR = "0x687473fb";
-const CLOCKOUT_SELECTOR = "0x6b92bb2a";
+// Changed from 0x6b92bb2a: the redeployed EmployeeClock.sol dropped the
+// overtimeMinutes param from clockOut(), which changes its 4-byte selector.
+const CLOCKOUT_SELECTOR = "0xc0f5c77a";
 
 /**
- * Robust importer for real BscScan "Export Transactions" CSV files.
+ * Robust importer for real BscScan/opBNBScan "Export Transactions" CSV files.
  * Handles:
  * - Quoted headers with spaces/parentheses (e.g. "DateTime (UTC)")
  * - CRLF line endings
  * - "To" sometimes empty while "ContractAddress" has the value
- * - Method column containing exact 4-byte selectors (0x687473fb / 0x6b92bb2a)
+ * - Method column containing exact 4-byte selectors (0x687473fb / 0xc0f5c77a)
  * - Success filter via Status / ErrCode columns
  */
 export function importBscScanCsv(file, existingLogs = []) {
@@ -101,7 +103,7 @@ export function importBscScanCsv(file, existingLogs = []) {
               continue;
             }
 
-            // Determine event type from Method column (most reliable in BscScan exports)
+            // Determine event type from Method column (most reliable in BscScan/opBNBScan exports)
             let eventName = null;
             if (method === CLOCKIN_SELECTOR || method.includes('clockin')) {
               eventName = 'ClockIn';

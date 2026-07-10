@@ -280,8 +280,8 @@ function App() {
 
           <div className="p-4 border-t mt-auto">
             <div className="text-[10px] text-gray-400 px-4">
-              Data from BscScan CSV exports<br />
-              Contract: 0x4ACFE5...f1f2
+              Data from opBNB Testnet exports<br />
+              Contract: 0x465467...c945e
             </div>
           </div>
         </div>

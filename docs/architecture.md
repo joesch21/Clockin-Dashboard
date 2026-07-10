@@ -9,9 +9,10 @@ It is designed to be:
 - Easy to maintain across long-running development threads
 
 ## Core Philosophy
-- **Data Source**: Raw BscScan transaction export CSV is the single source of truth.
-- **No Live Blockchain**: We no longer rely on unreliable free BscScan API endpoints.
-- **Client-side Intelligence**: Pairing logic, worked time calculation, and summaries happen in the browser.
+- **Data Source**: Raw explorer transaction export CSV (BscScan-family) is the single source of truth.
+- **Chain**: Deployed on **opBNB Testnet** (chain ID 5611) as of 2026-07-11, migrated from BSC Testnet for cheaper gas and a compatible free explorer API.
+- **No Live Blockchain**: We no longer rely on unreliable free explorer API endpoints *inside the running app*. A scheduled background script (see `scripts/fetch-daily-csv.js`) may call the explorer API once a day to produce a CSV — that's a different reliability profile than in-app live calls.
+- **Client-side Intelligence**: Pairing logic and worked time calculation happen in the browser. Overtime is NOT read from the chain — `clockOut()` no longer accepts an overtime parameter, so it's always `0` from imports and must be cross-referenced against the roster separately.
 - **Local Persistence**: All data lives in `localStorage` so it survives page reloads.
 
 ## Tech Stack
@@ -62,10 +63,19 @@ It is designed to be:
 - Pairing logic lives in `src/utils/sessionPairing.js` (`buildSessionsByEmployee`), following the same ClockIn→ClockOut contract as the Period Summary in `LogsView.jsx`.
   - **Known duplication**: `LogsView.jsx`'s Period Summary currently has its own inline copy of this pairing logic. A future pass should point both at the shared `sessionPairing.js` util so there's one source of truth for pairing rules.
 
+## Smart Contract (EmployeeClock.sol) — redeployed 2026-07-11
+- **Chain**: opBNB Testnet (5611)
+- **Address**: `0x4654675c8C068aC49047e9E607C34BE2492c945e`
+- **Changes from the original BSC Testnet version**:
+  - `clockIn`/`clockOut` now validate GPS against a fixed 500m geofence around `-33.932101, 151.165226`, replacing the old (buggy) `latitude != 0 && longitude != 0` check.
+  - `clockOut()` no longer accepts an `overtimeMinutes` parameter — overtime is not tracked on-chain at all anymore. This **changed its function selector** from `0x6b92bb2a` to `0xc0f5c77a`. `importBscScanCsv.js` and `scripts/fetch-daily-csv.js` were updated accordingly.
+  - `ClockEvent` struct packed into a single storage slot (`uint40` timestamp, `int32` lat/lng) instead of 3× `uint256`/`int256`, cutting SSTORE cost since workers still pay their own gas.
+  - The 9-hour "one shift per rolling window" cooldown is enforced **app-side** (`src/utils/shiftCooldown.js`), not in the contract — a direct contract call can bypass it. This was a deliberate tradeoff, not an oversight.
+
 ## Data Flow (CSV Import)
 
 ```
-BscScan CSV Export
+Explorer CSV Export (BscScan-family)
         ↓
 importBscScanCsv.js (parser)
         ↓

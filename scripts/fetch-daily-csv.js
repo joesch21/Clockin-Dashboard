@@ -2,17 +2,17 @@
 /**
  * fetch-daily-csv.js
  *
- * Pulls all transactions for the ClockIn contract from BscScan's free
- * public API and writes them to a CSV file in the exact column shape
- * that importBscScanCsv.js already expects (i.e. what "Export CSV"
- * on bscscan.com produces). Run this once a day via cron / Task
- * Scheduler and then import the resulting file the same way you
- * would a manual BscScan export.
+ * Pulls all transactions for the ClockIn contract from opBNB Testnet's
+ * free public explorer API and writes them to a CSV file in the exact
+ * column shape that importBscScanCsv.js already expects (i.e. what
+ * "Export CSV" on a BscScan-family explorer produces). Run this once
+ * a day via cron / Task Scheduler and then import the resulting file
+ * the same way you would a manual export.
  *
  * Setup:
- *   1. Get a free API key: https://bscscan.com/register -> "API Keys"
+ *   1. Get a free API key: https://opbnb-testnet.bscscan.com/register -> "API Keys"
  *   2. npm install node-fetch   (skip if on Node 18+, fetch is built in)
- *   3. Set BSCSCAN_API_KEY as an env var, or paste it below.
+ *   3. Set opBNB_TESTNET_API_KEY as an env var, or paste it below.
  *   4. node fetch-daily-csv.js
  *
  * Schedule it:
@@ -29,8 +29,9 @@ const fs = require('fs');
 const path = require('path');
 
 // ---- Config ----
-const CONTRACT_ADDRESS = '0x4ACFE507138b73393Bc97C8913d30f79892eF1f2';
-const API_KEY = process.env.BSCSCAN_API_KEY || 'PASTE_YOUR_FREE_API_KEY_HERE';
+const CONTRACT_ADDRESS = '0x4654675c8C068aC49047e9E607C34BE2492c945e';
+const API_KEY = process.env.opBNB_TESTNET_API_KEY || 'PASTE_YOUR_FREE_API_KEY_HERE';
+const API_BASE_URL = 'https://api-opbnb-testnet.bscscan.com/api'; // opBNB Testnet explorer API
 const OUTPUT_DIR = path.join(__dirname, '..', 'incoming'); // adjust to wherever you want the file to land
 const OUTPUT_FILE = path.join(OUTPUT_DIR, `export-${CONTRACT_ADDRESS}-latest.csv`);
 
@@ -74,7 +75,7 @@ function toCsvRow(tx) {
 }
 
 async function fetchAllTransactions() {
-  const url = new URL('https://api.bscscan.com/api');
+  const url = new URL(API_BASE_URL);
   url.searchParams.set('module', 'account');
   url.searchParams.set('action', 'txlist');
   url.searchParams.set('address', CONTRACT_ADDRESS);
@@ -95,7 +96,7 @@ async function fetchAllTransactions() {
 
 async function main() {
   if (!API_KEY || API_KEY === 'PASTE_YOUR_FREE_API_KEY_HERE') {
-    console.error('Set BSCSCAN_API_KEY (env var) or edit API_KEY in this script before running.');
+    console.error('Set opBNB_TESTNET_API_KEY (env var) or edit API_KEY in this script before running.');
     process.exit(1);
   }
 
