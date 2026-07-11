@@ -2,10 +2,34 @@ import React from 'react';
 import { useAppContext } from '../App';
 import { Users, Clock, TrendingUp, Calendar, ArrowRight, LogIn, LogOut, AlertTriangle, RefreshCw, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { format, subDays } from 'date-fns';
+import { format, subDays, formatDistanceToNow } from 'date-fns';
 
 function Overview() {
-  const { mappings, logs, isLoadingLogs, fetchLogs, getDisplayName, triggerCsvImport } = useAppContext();
+  const {
+    mappings,
+    logs,
+    isLoadingLogs,
+    fetchLogs,
+    getDisplayName,
+    triggerCsvImport,
+    refreshLiveEvents,
+    isRefreshingLive,
+    lastLiveSync,
+  } = useAppContext();
+
+  const [refreshError, setRefreshError] = React.useState(null);
+  const [lastRefreshAdded, setLastRefreshAdded] = React.useState(null);
+
+  const handleRefreshLive = async () => {
+    setRefreshError(null);
+    setLastRefreshAdded(null);
+    try {
+      const { added } = await refreshLiveEvents();
+      setLastRefreshAdded(added);
+    } catch (err) {
+      setRefreshError(err.message || 'Refresh failed');
+    }
+  };
 
   // Compute stats
   const totalEmployees = mappings.length;
@@ -43,16 +67,47 @@ function Overview() {
           </div>
           <h1 className="text-4xl font-semibold tracking-tight text-gray-900">Good afternoon, Manager</h1>
           <p className="text-gray-500 mt-1">Here's what's happening with your team today. Import updated BscScan exports anytime.</p>
+          {lastLiveSync && (
+            <p className="text-xs text-gray-400 mt-1">
+              Last synced from chain {formatDistanceToNow(new Date(lastLiveSync), { addSuffix: true })}
+            </p>
+          )}
         </div>
-        
-        <button 
-          onClick={triggerCsvImport} 
-          disabled={isLoadingLogs}
-          className="btn btn-primary text-sm self-start lg:self-auto"
-        >
-          <Upload className="w-4 h-4" /> Import BscScan CSV
-        </button>
+
+        <div className="flex gap-3 self-start lg:self-auto">
+          <button
+            onClick={handleRefreshLive}
+            disabled={isRefreshingLive}
+            className="btn btn-secondary text-sm"
+            title="Pull the latest ClockIn/ClockOut events directly from opBNB"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshingLive ? 'animate-spin' : ''}`} />
+            {isRefreshingLive ? 'Refreshing...' : 'Refresh Now'}
+          </button>
+
+          <button
+            onClick={triggerCsvImport}
+            disabled={isLoadingLogs}
+            className="btn btn-primary text-sm"
+          >
+            <Upload className="w-4 h-4" /> Import BscScan CSV
+          </button>
+        </div>
       </div>
+
+      {(refreshError || lastRefreshAdded !== null) && (
+        <div
+          className={`rounded-2xl px-4 py-3 text-sm ${
+            refreshError ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          {refreshError
+            ? `Refresh failed: ${refreshError}`
+            : lastRefreshAdded === 0
+              ? 'Refreshed — no new events since last sync.'
+              : `Refreshed — added ${lastRefreshAdded} new event${lastRefreshAdded === 1 ? '' : 's'}.`}
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -139,6 +194,15 @@ function Overview() {
               <ArrowRight className="w-5 h-5 text-gray-400 group-hover:translate-x-0.5 transition" />
             </Link>
 
+            <button
+              onClick={handleRefreshLive}
+              disabled={isRefreshingLive}
+              className="w-full flex items-center justify-center gap-3 p-4 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-800 rounded-2xl font-medium transition"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshingLive ? 'animate-spin' : ''}`} />
+              {isRefreshingLive ? 'Refreshing from chain...' : 'Refresh from Chain'}
+            </button>
+
             <button 
               onClick={triggerCsvImport} 
               disabled={isLoadingLogs}
@@ -192,7 +256,7 @@ function Overview() {
       </div>
 
       <div className="text-center text-xs text-gray-400 pt-4">
-        Data is imported from BscScan transaction CSV exports. Mappings stored locally in your browser. Re-import updated CSVs to add/amend records (deduplicated automatically).
+        Data is imported from BscScan transaction CSV exports, or refreshed live from opBNB. Mappings stored locally in your browser. Re-import or refresh anytime (deduplicated automatically).
       </div>
     </div>
   );

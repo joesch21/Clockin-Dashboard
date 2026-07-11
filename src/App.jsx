@@ -9,6 +9,7 @@ import LogsView from './components/LogsView';
 import Overview from './components/Overview';
 import Reports from './components/Reports';
 import { importBscScanCsv } from './utils/importBscScanCsv';
+import { refreshLiveEvents as fetchLiveEventsFromChain } from './utils/fetchLiveEvents';
 
 // Create context for shared state
 const AppContext = createContext();
@@ -19,8 +20,12 @@ function App() {
   const [mappings, setMappings] = useState([]);
   const [logs, setLogs] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [isRefreshingLive, setIsRefreshingLive] = useState(false);
   const [showDeidentified, setShowDeidentified] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [lastLiveSync, setLastLiveSync] = useState(
+    () => localStorage.getItem("lastLiveSync") || null
+  );
   const [notification, setNotification] = useState(null);
   const location = useLocation();
 
@@ -154,7 +159,7 @@ function App() {
     return wallet.substring(0, 6) + "..." + wallet.substring(wallet.length - 4);
   };
 
-  // === CSV IMPORT HANDLER (core new feature) ===
+  // === CSV IMPORT HANDLER ===
   const handleImportBscScanCsv = async (file) => {
     if (!file) return;
 
@@ -198,12 +203,45 @@ function App() {
     }
   };
 
-  // Legacy fetchLogs kept for compatibility with components but now shows guidance
-  const fetchLogs = async (showToast = true) => {
-    if (showToast) {
-      showNotification("Live blockchain sync is disabled. Use 'Import BscScan CSV' to load attendance data from BscScan exports.", "warning");
+  // === LIVE CHAIN REFRESH (replaces the old "sync disabled" stub) ===
+  // Calls /api/fetch-clock-events, merges any new events into `logs` via the
+  // same dedup key used everywhere else, and persists via the existing
+  // logs-persistence effect above (no separate localStorage write needed here).
+  const refreshLiveEvents = async (showToast = true) => {
+    setIsRefreshingLive(true);
+    try {
+      const { mergedLogs, added } = await fetchLiveEventsFromChain(logs);
+      setLogs(mergedLogs);
+
+      const now = new Date().toISOString();
+      localStorage.setItem("lastLiveSync", now);
+      setLastLiveSync(now);
+
+      if (showToast) {
+        showNotification(
+          added === 0
+            ? "Refreshed from chain — no new events since last sync."
+            : `✅ Synced ${added} new clock event${added === 1 ? '' : 's'} from opBNB. Total now: ${mergedLogs.length}`,
+          added === 0 ? "warning" : "success"
+        );
+      }
+      return { added };
+    } catch (error) {
+      console.error("Live refresh failed:", error);
+      if (showToast) {
+        showNotification(`Live refresh failed: ${error.message}`, "warning");
+      }
+      throw error;
+    } finally {
+      setIsRefreshingLive(false);
     }
   };
+
+  // `fetchLogs` kept as the historical name so any existing callers
+  // elsewhere in the app (e.g. a "Refresh" button in LogsView/Reports you
+  // haven't shown me yet) pick up real live-sync behavior instead of the
+  // old "sync disabled" guidance message, with no call-site changes needed.
+  const fetchLogs = refreshLiveEvents;
 
   // Allow components to force reload from localStorage (rarely needed)
   const reloadLogsFromStorage = () => {
@@ -236,11 +274,14 @@ function App() {
     logs,
     setLogs,
     isLoadingLogs,
+    isRefreshingLive,
     showDeidentified,
     toggleDeidentification,
     getDisplayName,
-    fetchLogs,              // kept for UI compatibility (now shows guidance)
+    fetchLogs,              // now an alias for refreshLiveEvents (see above)
+    refreshLiveEvents,
     lastRefresh,
+    lastLiveSync,
     showNotification,
     importBscScanCsv: handleImportBscScanCsv,
     triggerCsvImport,
@@ -328,12 +369,15 @@ function App() {
                 {isLoadingLogs ? "Importing..." : "Import BscScan CSV"}
               </button>
 
+              {/* Was "How to Import" showing a static guidance toast when live
+                  sync was disabled — now actually performs the live refresh */}
               <button 
-                onClick={() => fetchLogs(true)}
+                onClick={() => refreshLiveEvents(true)}
+                disabled={isRefreshingLive}
                 className="btn btn-secondary text-sm gap-2"
               >
-                <RefreshCw className="w-4 h-4" />
-                How to Import
+                <RefreshCw className={`w-4 h-4 ${isRefreshingLive ? 'animate-spin' : ''}`} />
+                {isRefreshingLive ? "Refreshing..." : "Refresh Now"}
               </button>
 
               <button 
@@ -391,9 +435,10 @@ function App() {
           </main>
 
           <footer className="bg-white border-t px-6 py-3 text-xs text-gray-400 flex items-center justify-between">
-            <div>© {new Date().getFullYear()} ClockIn Manager • Import attendance from BscScan transaction CSV exports</div>
+            <div>© {new Date().getFullYear()} ClockIn Manager • Import from BscScan CSV or refresh live from opBNB</div>
             <div className="flex items-center gap-4">
               <span>Last import: {lastRefresh ? lastRefresh.toLocaleTimeString('en-AU') : 'Never'}</span>
+              <span>Last live sync: {lastLiveSync ? new Date(lastLiveSync).toLocaleTimeString('en-AU') : 'Never'}</span>
             </div>
           </footer>
         </div>
