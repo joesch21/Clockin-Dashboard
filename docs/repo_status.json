@@ -1,10 +1,10 @@
 {
   "project": "ClockIn Manager - Manager TimeClock Dashboard",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "last_updated": "2026-07-11",
-  "status": "Stable - migrated to opBNB Testnet with a redeployed contract (geofence + no on-chain overtime). CSV import selector updated to match.",
-  "data_strategy": "Primary data source is raw explorer transaction export CSV (BscScan-family). No live blockchain fetching from within the running app. Demo data is used only as fallback on first load.",
-  "current_focus": "Contract migrated to opBNB Testnet (chain 5611) at 0x4654675c8C068aC49047e9E607C34BE2492c945e. New contract enforces a 500m GPS geofence on-chain and no longer tracks overtime at all (removed from clockOut()). Reports page lets managers search a single employee (by name or wallet) and pull their full clock-in/out history.",
+  "status": "Stable - opBNB Testnet contract unchanged since 1.4.0. Live on-chain event fetching (daily cron + manual Refresh Now button) is now working end-to-end after migrating off the deprecated BscScan-family V1 explorer API to the unified Etherscan V2 API.",
+  "data_strategy": "Two independent data sources feed clockinLogs: (1) manual BscScan-family CSV import (importBscScanCsv.js, unchanged), and (2) /api/fetch-clock-events, a Vercel serverless function that queries the live chain via Etherscan V2 and returns Log[] objects directly. No live blockchain fetching happens on page load — fetches only happen via (a) daily Vercel Cron or (b) an explicit manager 'Refresh Now' click, both hitting the same endpoint and merging into localStorage via the existing dedup key. Demo data is used only as fallback on first-ever load.",
+  "current_focus": "Contract remains at 0x4654675c8C068aC49047e9E607C34BE2492c945e on opBNB Testnet (chain 5611), 500m GPS geofence, no on-chain overtime. Reports page lets managers search a single employee (by name or wallet) and pull their full clock-in/out history. Live-fetch feature (this release) gives managers real GPS coordinates from chain data, unlike CSV imports which report lat/lng as 0.",
   "key_decisions": [
     "overtimeMinutes is always 0 from CSV imports; the contract no longer accepts it as a parameter at all (was previously self-reported and untrusted)",
     "Deduplication key = employee + rawTimestamp + eventName",
@@ -12,16 +12,23 @@
     "Employee display name comes from WalletMapping",
     "Reports.jsx added at route /reports for per-employee search + full session history",
     "Session pairing logic extracted to src/utils/sessionPairing.js for reuse by Reports.jsx (LogsView.jsx still has its own inline copy pending a future refactor to share one source of truth)",
-    "Migrated from BSC Testnet to opBNB Testnet for cheaper gas; same BscScan-family explorer API shape at api-opbnb-testnet.bscscan.com",
+    "Migrated from BSC Testnet to opBNB Testnet for cheaper gas",
     "clockOut() selector changed from 0x6b92bb2a to 0xc0f5c77a since overtimeMinutes was dropped from its signature — importBscScanCsv.js and fetch-daily-csv.js updated to match",
-    "9-hour shift cooldown enforced app-side only (src/utils/shiftCooldown.js), not in the smart contract"
+    "9-hour shift cooldown enforced app-side only (src/utils/shiftCooldown.js), not in the smart contract",
+    "Added api/fetch-clock-events.js (Vercel serverless function) — server-side only, decodes ClockIn/ClockOut calldata via ethers Interface, returns Log[] directly (no CSV round-trip needed for this path)",
+    "Two callers hit the same endpoint: Vercel Cron (daily, via vercel.json) and a manager-triggered 'Refresh Now' button (src/utils/fetchLiveEvents.js) — auth differs (CRON_SECRET vs VITE_MANAGER_REFRESH_TOKEN) but logic is identical",
+    "opBNB_TESTNET_API_KEY lives in Vercel Environment Variables with no VITE_ prefix, so it never reaches the client bundle. VITE_MANAGER_REFRESH_TOKEN is a single shared var read by both client (build-time, via VITE_ prefix) and server (runtime, plain process.env) — it's a lower-stakes request-gating token, not a sensitive credential, so one shared name is fine",
+    "MIGRATION (2026-07-11): the old BscScan-family per-chain explorer API (api-opbnb-testnet.bscscan.com) was fully deprecated and returns a hard error on every call. All explorer queries now go through the unified Etherscan V2 API at https://api.etherscan.io/v2/api, with the target chain selected via a required chainid query param (5611 for opBNB Testnet) rather than a chain-specific subdomain",
+    "The API key itself must now be generated from an actual etherscan.io account (Account -> API Keys), NOT from the opBNB-specific BscScan portal — old opBNB/BscScan-issued keys are rejected by V2 with 'Invalid API Key (#err2)' even though the account systems look related",
+    "Vercel Hobby caps Cron at once/day with imprecise timing (fires sometime within the scheduled hour) — hourly polling would require Pro ($20/mo) or an external scheduler hitting the same route; decided daily + manual button covers actual manager needs without the upgrade"
   ],
   "known_limitations": [
-    "GPS lat/lng validated on-chain via geofence, but not currently surfaced in the CSV import pipeline (explorer tx-list CSV doesn't include event/log data)",
+    "GPS lat/lng validated on-chain via geofence, but CSV imports still report lat/lng as 0 (explorer tx-list CSV export doesn't include decoded calldata) — only the live-fetch path (/api/fetch-clock-events) currently surfaces real coordinates",
     "Overtime must be reconciled against the roster entirely outside this app now — there is no on-chain or CSV source for it",
     "Demo data mixes with real data until user clears logs",
     "Pairing logic is duplicated between LogsView.jsx and src/utils/sessionPairing.js until refactored",
-    "9-hour cooldown is a UX guard only — a direct contract call bypasses it since it's not enforced on-chain"
+    "9-hour cooldown is a UX guard only — a direct contract call bypasses it since it's not enforced on-chain",
+    "clockIn/clockOut ABI signature in api/fetch-clock-events.js (int256 latitude, int256 longitude) was inferred from documentation, not verified line-by-line against EmployeeClock.sol — confirm this matches before relying on decoded lat/lng in production"
   ],
   "tech_stack": {
     "frontend": "React 18 + Vite + React Router",
@@ -30,8 +37,8 @@
     "icons": "lucide-react",
     "dates": "date-fns",
     "persistence": "localStorage (walletMappings + clockinLogs)",
-    "chain": "opBNB Testnet (5611)"
+    "chain": "opBNB Testnet (5611)",
+    "explorer_api": "Etherscan V2 (https://api.etherscan.io/v2/api?chainid=5611) — migrated from deprecated BscScan-family V1 endpoint 2026-07-11"
   },
-  "last_major_change": "Redeployed EmployeeClock.sol to opBNB Testnet with GPS geofence validation replacing the old lat/lng!=0 check, removed overtimeMinutes entirely from clockOut(), packed ClockEvent storage, and updated importBscScanCsv.js + fetch-daily-csv.js for the new contract address and ClockOut selector (0xc0f5c77a)."
+  "last_major_change": "Wired up live on-chain event fetching: api/fetch-clock-events.js (Vercel serverless function) + vercel.json (daily cron) + src/utils/fetchLiveEvents.js (manual Refresh Now button in App.jsx/Overview.jsx). Mid-implementation, discovered the BscScan-family V1 explorer API this was originally built against had been deprecated; migrated all explorer calls to the unified Etherscan V2 API (chainid=5611) and confirmed working end-to-end with a fresh etherscan.io-issued API key."
 }
-

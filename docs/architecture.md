@@ -9,9 +9,9 @@ It is designed to be:
 - Easy to maintain across long-running development threads
 
 ## Core Philosophy
-- **Data Source**: Raw explorer transaction export CSV (BscScan-family) is the single source of truth.
+- **Data Source**: Two independent sources feed `clockinLogs`: (1) manual CSV import (BscScan-family export, unchanged), and (2) live on-chain fetch via `/api/fetch-clock-events`, added 2026-07-11.
 - **Chain**: Deployed on **opBNB Testnet** (chain ID 5611) as of 2026-07-11, migrated from BSC Testnet for cheaper gas and a compatible free explorer API.
-- **No Live Blockchain**: We no longer rely on unreliable free explorer API endpoints *inside the running app*. A scheduled background script (see `scripts/fetch-daily-csv.js`) may call the explorer API once a day to produce a CSV — that's a different reliability profile than in-app live calls.
+- **Live Fetch (added 2026-07-11)**: `/api/fetch-clock-events` is a Vercel Serverless Function, called by (a) a daily Vercel Cron job (`vercel.json`) and (b) the manager's "Refresh Now" button (`src/utils/fetchLiveEvents.js`). Both merge results into `clockinLogs` via the same dedup key as CSV import, so the two sources never conflict. This function queries the **Etherscan V2 API** (`https://api.etherscan.io/v2/api?chainid=5611`) — the original BscScan-family V1 endpoint this project assumed was deprecated mid-project; see `schema_drift.md` for the full migration note and a hard warning against reusing old opBNB/BscScan-portal API keys, which V2 rejects.
 - **Client-side Intelligence**: Pairing logic and worked time calculation happen in the browser. Overtime is NOT read from the chain — `clockOut()` no longer accepts an overtime parameter, so it's always `0` from imports and must be cross-referenced against the roster separately.
 - **Local Persistence**: All data lives in `localStorage` so it survives page reloads.
 
@@ -62,6 +62,13 @@ It is designed to be:
   - CSV export of that employee's session history via `file-saver`
 - Pairing logic lives in `src/utils/sessionPairing.js` (`buildSessionsByEmployee`), following the same ClockIn→ClockOut contract as the Period Summary in `LogsView.jsx`.
   - **Known duplication**: `LogsView.jsx`'s Period Summary currently has its own inline copy of this pairing logic. A future pass should point both at the shared `sessionPairing.js` util so there's one source of truth for pairing rules.
+
+### 6. api/fetch-clock-events.js (new, 2026-07-11)
+- Vercel Serverless Function, not part of the Vite-built frontend bundle
+- Two authenticated callers: Vercel Cron (daily, via `vercel.json`, auth via auto-injected `CRON_SECRET`) and the manager's "Refresh Now" button (auth via shared `VITE_MANAGER_REFRESH_TOKEN`)
+- Queries Etherscan V2 API (`chainid=5611`), decodes `ClockIn`/`ClockOut` calldata via ethers `Interface`, returns `Log[]` objects directly — no CSV round-trip
+- `opBNB_TESTNET_API_KEY` (server-only, no `VITE_` prefix) must be an **etherscan.io**-issued key; opBNB/BscScan-portal keys are rejected — see `schema_drift.md`
+- Client merge logic lives in `src/utils/fetchLiveEvents.js`, dedupes against existing `clockinLogs` via the standard key before handing off to `App.jsx`'s `refreshLiveEvents()`, which persists via the existing logs-persistence effect
 
 ## Smart Contract (EmployeeClock.sol) — redeployed 2026-07-11
 - **Chain**: opBNB Testnet (5611)

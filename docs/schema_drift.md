@@ -4,6 +4,10 @@ This document protects the project against breaking changes when context resets 
 
 ## Log Object Shape (clockinLogs)
 
+**Two sources now populate this array (as of 2026-07-11):**
+1. `importBscScanCsv(file, existingLogs)` — manual CSV import, `latitude`/`longitude` always `"0"` (explorer CSV export has no decoded calldata)
+2. `/api/fetch-clock-events` (Vercel serverless function) — live chain fetch, decodes real `latitude`/`longitude` from calldata via ethers `Interface`. Triggered by daily Vercel Cron or the manager's "Refresh Now" button (`src/utils/fetchLiveEvents.js`). Both sources merge into the same `clockinLogs` array using the identical dedup key below, so importing a CSV and live-fetching the same events is safe and won't duplicate.
+
 ```ts
 interface Log {
   eventName: 'ClockIn' | 'ClockOut';
@@ -75,6 +79,18 @@ The pairing logic in `LogsView.jsx` assumes:
 - A `ClockIn` is always followed (eventually) by a `ClockOut`
 - Multiple sessions per day are summed
 - `overtimeMinutes` on any individual log is always `0` and is not a signal to sum — worked duration is derived purely from `rawTimestamp` differences between paired events
+
+## Explorer API Migration (critical — updated 2026-07-11)
+
+The BscScan-family V1 explorer API (`api-opbnb-testnet.bscscan.com/api`) that `importBscScanCsv.js`'s CSV export and the original `fetch-daily-csv.js` script were built against **has been fully deprecated** and returns a hard error on every call: `"You are using a deprecated V1 endpoint, switch to Etherscan API V2"`.
+
+`api/fetch-clock-events.js` has been migrated to the replacement:
+- **Base URL**: `https://api.etherscan.io/v2/api` (same for every chain — no more per-chain subdomains)
+- **Required param**: `chainid=5611` for opBNB Testnet (was previously implicit in the subdomain)
+- **API key**: must be generated from an actual **etherscan.io** account (Account → API Keys). Keys generated from the opBNB-specific BscScan portal are **rejected** by V2 with `"Invalid API Key (#err2)"` even though they look like they should work — this cost significant debugging time, don't reintroduce a BscScan-portal-issued key here.
+- The manager-facing CSV export/import path is unaffected by this — managers still export CSVs directly from the opBNB block explorer website UI, which is a different code path from this API.
+
+If you're reading this in a future thread and live fetch starts failing with `NOTOK` / 502 errors, check `data.result` (not `data.message`) in the explorer response first — that's where Etherscan puts the actual reason (e.g. `"Missing/Invalid API Key"`), and the code as of 2026-07-11 already surfaces this in the `detail` field of the 502 response.
 
 ## Shift Cooldown (app-side, not schema, but related)
 `src/utils/shiftCooldown.js` enforces a **9-hour** minimum gap between a wallet's clock-ins, computed from `logs` in memory/localStorage — not from the contract. This is a UX guard only; it doesn't change the Log shape but depends on `rawTimestamp` being accurate and in milliseconds.
