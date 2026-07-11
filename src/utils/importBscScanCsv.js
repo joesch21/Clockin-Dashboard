@@ -78,6 +78,12 @@ export function importBscScanCsv(file, existingLogs = []) {
             const unixStr = get(['UnixTimestamp', 'UnixTimeStamp', 'timestamp']);
             const method = get(['Method', 'method', 'Function']).toLowerCase();
             const status = get(['Status', 'status', 'ErrCode']).toLowerCase();
+            // Present only in CSVs produced by the event-log based
+            // fetch-daily-csv.js v2 (real on-chain geofence coordinates).
+            // Plain explorer tx-list exports won't have these columns —
+            // falls back to "0" to match the previous behavior.
+            const latitudeStr = get(['Latitude', 'latitude']) || '0';
+            const longitudeStr = get(['Longitude', 'longitude']) || '0';
 
             if (!txHash || !fromAddr) {
               skipReasons.noTxHash++;
@@ -145,8 +151,8 @@ export function importBscScanCsv(file, existingLogs = []) {
               employee: fromAddr,
               timestamp: localTimestamp,
               rawTimestamp,
-              latitude: "0",
-              longitude: "0",
+              latitude: latitudeStr,
+              longitude: longitudeStr,
               overtimeMinutes: 0,
             });
 

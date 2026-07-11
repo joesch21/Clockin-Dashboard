@@ -41,36 +41,35 @@ function App() {
 
     // Logs (CSV imported data)
     const savedLogs = localStorage.getItem("clockinLogs");
-    if (savedLogs) {
+    if (savedLogs !== null) {
       try {
         const parsed = JSON.parse(savedLogs);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setLogs(parsed);
-          setLastRefresh(new Date());
+          if (parsed.length > 0) setLastRefresh(new Date());
+          // NOTE: an empty array here is respected as-is (e.g. after
+          // "Clear All Data"). We do NOT reseed demo data just because
+          // the array is empty — only a genuinely first-ever visit
+          // (savedLogs === null) gets the demo seed. See clearAllData().
         } else {
-          // First time or empty -> load demo so UI is immediately useful
-          const demo = getDemoLogs();
-          setLogs(demo);
-          localStorage.setItem("clockinLogs", JSON.stringify(demo));
+          console.error("Corrupt clockinLogs value, resetting to empty");
+          setLogs([]);
         }
       } catch (e) {
         console.error("Error loading logs", e);
-        const demo = getDemoLogs();
-        setLogs(demo);
+        setLogs([]);
       }
     } else {
-      // No saved logs yet -> seed with demo data (user can import real CSV to replace/append)
+      // Truly first-ever load (localStorage key has never been set) -> seed demo
       const demo = getDemoLogs();
       setLogs(demo);
       localStorage.setItem("clockinLogs", JSON.stringify(demo));
     }
   }, []);
 
-  // Persist logs whenever they change
+  // Persist logs whenever they change (including intentionally clearing to [])
   useEffect(() => {
-    if (logs.length > 0) {
-      localStorage.setItem("clockinLogs", JSON.stringify(logs));
-    }
+    localStorage.setItem("clockinLogs", JSON.stringify(logs));
   }, [logs]);
 
   // Persist mappings
@@ -216,6 +215,21 @@ function App() {
     }
   };
 
+  // Clears all attendance logs (e.g. demo/template data) without
+  // reseeding demo data on next load. Does NOT touch employee mappings.
+  const clearAllData = () => {
+    const confirmed = window.confirm(
+      "This will permanently clear all attendance logs (including demo data). " +
+      "Employee mappings will be kept. This can't be undone. Continue?"
+    );
+    if (!confirmed) return;
+
+    setLogs([]);
+    localStorage.setItem("clockinLogs", JSON.stringify([]));
+    setLastRefresh(null);
+    showNotification("All attendance logs cleared. Import a CSV to load real data.", "warning");
+  };
+
   const contextValue = {
     mappings,
     updateMappings,
@@ -231,6 +245,7 @@ function App() {
     importBscScanCsv: handleImportBscScanCsv,
     triggerCsvImport,
     reloadLogsFromStorage,
+    clearAllData,
   };
 
   return (
@@ -326,6 +341,14 @@ function App() {
                 className="btn btn-secondary text-sm"
               >
                 {showDeidentified ? "Show Real Names" : "De-identify Data"}
+              </button>
+
+              <button 
+                onClick={clearAllData}
+                className="btn btn-secondary text-sm text-rose-600 hover:bg-rose-50 border-rose-200"
+                title="Clear all attendance logs, including demo data"
+              >
+                Clear All Data
               </button>
 
               <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600">
