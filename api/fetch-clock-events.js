@@ -45,8 +45,8 @@ function toHumanTimestamp(unixSeconds) {
 export default async function handler(req, res) {
   const cronOk = req.headers['authorization'] === `Bearer ${process.env.CRON_SECRET}`;
   const manualOk =
-    !!process.env.MANAGER_REFRESH_TOKEN &&
-    req.headers['x-manual-refresh'] === process.env.MANAGER_REFRESH_TOKEN;
+    !!process.env.VITE_MANAGER_REFRESH_TOKEN &&
+    req.headers['x-manual-refresh'] === process.env.VITE_MANAGER_REFRESH_TOKEN;
 
   if (!cronOk && !manualOk) {
     return res.status(401).json({ error: 'Unauthorized' });
