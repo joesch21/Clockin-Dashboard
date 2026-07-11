@@ -19,7 +19,8 @@
 import { ethers } from 'ethers';
 
 const CONTRACT_ADDRESS = '0x4654675c8C068aC49047e9E607C34BE2492c945e';
-const EXPLORER_API = 'https://api-opbnb-testnet.bscscan.com/api';
+const EXPLORER_API = 'https://api.etherscan.io/v2/api';
+const CHAIN_ID = 5611; // opBNB Testnet
 const CLOCKIN_SELECTOR = '0x687473fb';
 const CLOCKOUT_SELECTOR = '0xc0f5c77a';
 
@@ -58,7 +59,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = `${EXPLORER_API}?module=account&action=txlist&address=${CONTRACT_ADDRESS}&sort=asc&apikey=${apiKey}`;
+    const url = `${EXPLORER_API}?chainid=${CHAIN_ID}&module=account&action=txlist&address=${CONTRACT_ADDRESS}&sort=asc&apikey=${apiKey}`;
     const explorerRes = await fetch(url);
     const data = await explorerRes.json();
 
