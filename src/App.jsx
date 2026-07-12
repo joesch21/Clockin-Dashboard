@@ -2,12 +2,13 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { 
   Clock, Users, BarChart3, Download, RefreshCw, Calendar, MapPin, 
-  LogIn, LogOut, AlertTriangle, Upload, Search
+  LogIn, LogOut, AlertTriangle, Upload, Search, Info
 } from 'lucide-react';
 import WalletMapping from './components/WalletMapping';
 import LogsView from './components/LogsView';
 import Overview from './components/Overview';
 import Reports from './components/Reports';
+import About from './components/About';
 import { importBscScanCsv } from './utils/importBscScanCsv';
 import { refreshLiveEvents as fetchLiveEventsFromChain } from './utils/fetchLiveEvents';
 
@@ -332,6 +333,12 @@ function App() {
             >
               <Search className="w-5 h-5" /> Reports
             </NavLink>
+            <NavLink 
+              to="/about" 
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            >
+              <Info className="w-5 h-5" /> About
+            </NavLink>
           </nav>
 
           <div className="p-4 border-t mt-auto">
@@ -431,6 +438,7 @@ function App() {
               <Route path="/mappings" element={<WalletMapping />} />
               <Route path="/logs" element={<LogsView />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/about" element={<About />} />
             </Routes>
           </main>
 
