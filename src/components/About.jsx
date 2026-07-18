@@ -130,8 +130,8 @@ function About() {
               Your timeclock shouldn't need <span className="text-[var(--accent)]">a server</span> to trust.
             </h1>
             <p className="mt-6 text-lg text-[var(--muted)] max-w-lg leading-relaxed">
-              ClockIn Manager records every shift straight to a public blockchain \u2014 geofenced,
-              timestamped, and tamper-evident \u2014 so field and site teams get real attendance
+              ClockIn Manager records every shift straight to a public blockchain yet geofenced,
+              timestamped, and tamper-evident, so field and site teams get real attendance
               records without paying for someone else's backend.
             </p>
             <div className="mt-9 flex flex-wrap gap-4">
@@ -144,7 +144,7 @@ function About() {
             </div>
             <div className="mt-8 flex items-center gap-2 mono text-xs text-[var(--muted)]">
               <CheckCircle2 className="w-3.5 h-3.5 text-[var(--accent2)]" />
-              Currently deployed on opBNB Testnet \u2014 mainnet-ready
+              Currently deployed on opBNB Testnet (currently for testing) - mainnet-ready
             </div>
           </div>
 
